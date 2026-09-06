@@ -1,0 +1,6 @@
+# DCS runtime output
+*.csv
+*.log
+
+# macOS
+.DS_Store
