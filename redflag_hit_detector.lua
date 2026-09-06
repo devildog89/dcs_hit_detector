@@ -1,17 +1,54 @@
--- Red Flag Hit Detection Script
-local HitHandler = {}
+local RedFlagHitHandler = {}
 
-function HitHandler:onEvent(event)
-    -- Check if a hit event occurred and if the target was a human player
-    if event.id == world.event.S_EVENT_HIT then
-        local target = event.target
+function RedFlagHitHandler:onEvent(event)
+    -- Check if the event is a HIT (event id 2)
+    if event.id == 2 and event.target then
+        local targetUnit = event.target
+        local targetName = targetUnit:getName()
 
-        if target and target:getPlayerName() then
-            -- Customize your message and text duration (e.g., 15 seconds) below
-            trigger.action.outText("REDFLAG CONTROL: Knock it Off! You have been HIT. Go to Marshal and wait for your flight.", 15)
+        -- Check if the unit hit belongs to a human player
+        if targetUnit:getPlayerName() ~= nil then
+            local playerName = targetUnit:getPlayerName()
+            local unitTypeName = targetUnit:getTypeName()
 
-            -- Optional: Play a default caution sound effect
-            trigger.action.outSound("Effects/Aircrafts/Cockpits/MasterCaution.wav") 
+            -- Display the Red Flag Training message
+            local messageText = string.format(
+                "\n=== SHOWTIME (WHITE CELL) MSG ===\n" ..
+                "Attention %s (%s)!\n" ..
+                "You have been HIT by a simulated threat.\n" ..
+                "KNOCK IT OFF! Break off engagement and reset behind the fallback line.", 
+                playerName, targetName
+            )
+
+            -- Send message to all players for 15 seconds
+            trigger.action.outText(messageText, 15)
+
+            -- Optional: Play a default notification sound
+            trigger.action.outSound("OldPhone.ogg") 
         end
     end
 end
+
+-- Force player immortality on mission start
+local function SetPlayersImmortal()
+    local coalitions = {coalition.side.BLUE, coalition.side.RED}
+    for , side in ipairs(coalitions) do
+        local groups = coalition.getGroups(side)
+        for , group in ipairs(groups) do
+            local units = group:getUnits()
+            for _, unit in ipairs(units) do
+                if unit:getPlayerName() ~= nil then
+                    local groupController = group:getController()
+                    -- Apply the built-in DCS command to lock invulnerability
+                    local command = {
+                        id = 'SetImmortal',
+                        params = {
+                            value = true
+                        }
+                    }
+                    groupController:setCommand(command)
+                end
+            end
+        end
+    end
+end 
