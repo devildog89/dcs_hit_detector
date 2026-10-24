@@ -229,19 +229,29 @@ end
 --------------------
 -- Hit handler
 --------------------
-local HitHandler = {}
-HitHandler.__index = HitHandler
+-- event.target can be a static object, scenery, or a weapon; only Units have
+-- getPlayerName(). Returns the player's name, or nil for anything else.
+local function playerNameOf(obj)
+    if not obj then return nil end
+    local ok, name = pcall(function()
+        if Object.getCategory(obj) ~= Object.Category.UNIT then return nil end
+        return obj:getPlayerName()
+    end)
+    if ok then return name end
+    return nil
+end
 
-function HitHandler:onEvent(event)
+local HitHandler = {}
+
+local function handleHit(event)
     if event.id ~= world.event.S_EVENT_HIT then return end
 
     local target    = event.target
     local initiator = event.initiator
     local weapon    = event.weapon
 
-    if not target then return end
-    local playerName = target:getPlayerName()
-    if not playerName then return end  -- AI hit, ignore
+    local playerName = playerNameOf(target)
+    if not playerName then return end  -- AI, static, scenery or no target: ignore
 
     -- Filters
     if weapon and not categoryAllowed(weaponCategory(weapon)) then return end
@@ -270,6 +280,14 @@ function HitHandler:onEvent(event)
 
     -- 3) CSV log
     writeLog(info)
+end
+
+-- Never let one bad event take the handler down; report to dcs.log instead.
+function HitHandler:onEvent(event)
+    local ok, err = pcall(handleHit, event)
+    if not ok and env and env.error then
+        env.error("[RedFlagHitDetector] hit handler error: " .. tostring(err))
+    end
 end
 
 --------------------
