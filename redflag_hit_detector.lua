@@ -44,7 +44,7 @@ local CONFIG = {
                                 .. "Go to Marshal and wait for your flight.",
 
     -- %s placeholders, in order: player name, unit type, initiator, weapon category name, weapon name
-    WC_MSG_FORMAT          = "[HIT] %s in %s by %s \u2014 %s (%s)",
+    WC_MSG_FORMAT          = "[HIT] %s in %s by %s — %s (%s)",
 
     -- ===== Sound (played only for the hit player) =====
     PLAYER_SOUND           = "Effects/Aircrafts/Cockpits/MasterCaution.wav",
@@ -207,7 +207,7 @@ local function openLog()
     local ok, fh = pcall(io.open, logPath, "a")
     if not ok or not fh then
         trigger.action.outText("[RedFlagHitDetector] WARNING: could not open log '"
-            .. tostring(logPath) .. "' \u2014 logging disabled.", 10)
+            .. tostring(logPath) .. "' — logging disabled.", 10)
         logPath = nil
         return
     end
@@ -327,7 +327,7 @@ local function init()
     setAllPlayersImmortal()
     local msg = "[RedFlagHitDetector] Active"
     if logHandle then
-        msg = msg .. " \u2014 logging to " .. logPath
+        msg = msg .. " — logging to " .. logPath
     end
     trigger.action.outText(msg, 5)
 end
