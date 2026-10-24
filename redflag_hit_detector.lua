@@ -95,6 +95,36 @@ local function categoryAllowed(cat)
     return false
 end
 
+-- Weapon:getCategory() returns the *object* category (Object.Category.WEAPON),
+-- not shell/missile/rocket. The weapon category lives in getDesc().category.
+local function weaponCategory(weapon)
+    if not weapon then return nil end
+    local ok, desc = pcall(function() return weapon:getDesc() end)
+    if ok and type(desc) == "table" then return desc.category end
+    return nil
+end
+
+-- Best display name for whoever fired: player name, else unit name.
+local function shooterName(obj)
+    if not obj then return "world" end
+    local name = obj.getPlayerName and obj:getPlayerName()
+    if not name and obj.getName then name = obj:getName() end
+    return name or "unknown"
+end
+
+-- All the strings the broadcast and the CSV log need, built once.
+local function describeHit(target, initiator, weapon)
+    local cat = weaponCategory(weapon)
+    return {
+        player   = target:getPlayerName(),
+        unitType = (target.getTypeName and target:getTypeName()) or "aircraft",
+        shooter  = shooterName(initiator),
+        category = (cat and WEAPON_CATEGORY_NAMES[cat]) or "Threat",
+        -- getTypeName() is the weapon type (e.g. "AIM_120C"); getName() is a runtime ID
+        weapon   = (weapon and weapon.getTypeName and weapon:getTypeName()) or "simulated",
+    }
+end
+
 local function isCollision(initiator)
     if not CONFIG.EXCLUDE_COLLISIONS then return false end
     return initiator == nil
@@ -143,21 +173,11 @@ local function openLog()
     end
 end
 
-local function writeLog(playerName, target, weapon, initiator)
+local function writeLog(info)
     if not logHandle then return end
-    local ts       = os.date("%Y-%m-%dT%H:%M:%S")
-    local unitType = (target and target.getTypeName and target:getTypeName()) or "?"
-    local initName = "world"
-    if initiator then
-        initName = initiator.getName and initiator:getName()
-        if not initName and initiator.getPlayerName then initName = initiator:getPlayerName() end
-        if not initName then initName = "unknown" end
-    end
-    local cat     = (weapon and weapon.getCategory and weapon:getCategory()) or -1
-    local catName = WEAPON_CATEGORY_NAMES[cat] or "Threat"
-    local wpnName = (weapon and weapon.getName and weapon:getName()) or "simulated"
+    local ts = os.date("%Y-%m-%dT%H:%M:%S")
     logHandle:write(string.format("%s,%s,%s,%s,%s,%s\n",
-        ts, playerName, unitType, initName, catName, wpnName))
+        ts, info.player, info.unitType, info.shooter, info.category, info.weapon))
     logHandle:flush()
 end
 
@@ -179,7 +199,7 @@ function HitHandler:onEvent(event)
     if not playerName then return end  -- AI hit, ignore
 
     -- Filters
-    if weapon and not categoryAllowed(weapon:getCategory()) then return end
+    if weapon and not categoryAllowed(weaponCategory(weapon)) then return end
     if isCollision(initiator) then return end
     if isSelfFire(initiator, target) then return end
     if isFriendlyFire(initiator, target) then return end
@@ -191,17 +211,7 @@ function HitHandler:onEvent(event)
     end
     cooldown[playerName] = now
 
-    -- Build context strings for the white-cell message + log
-    local unitType  = target:getTypeName() or "aircraft"
-    local initName  = "world"
-    if initiator then
-        initName = initiator.getName and initiator:getName()
-        if not initName and initiator.getPlayerName then initName = initiator:getPlayerName() end
-        if not initName then initName = "unknown" end
-    end
-    local cat      = (weapon and weapon:getCategory()) or -1
-    local catName  = WEAPON_CATEGORY_NAMES[cat] or "Threat"
-    local wpnName  = (weapon and weapon:getName()) or "simulated"
+    local info = describeHit(target, initiator, weapon)
 
     -- 1) Targeted message + per-player sound (hit player only)
     local unitId = target:getID()
@@ -210,11 +220,11 @@ function HitHandler:onEvent(event)
 
     -- 2) White-cell / GM broadcast (visible to all players)
     local wcMsg = string.format(CONFIG.WC_MSG_FORMAT,
-        playerName, unitType, initName, catName, wpnName)
+        info.player, info.unitType, info.shooter, info.category, info.weapon)
     trigger.action.outText(wcMsg, CONFIG.WC_MSG_DURATION)
 
     -- 3) CSV log
-    writeLog(playerName, target, weapon, initiator)
+    writeLog(info)
 end
 
 --------------------
