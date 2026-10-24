@@ -69,7 +69,9 @@ local CONFIG = {
     LOG_FILE               = "redflag_hits.csv",
 
     -- ===== Immortal =====
-    SET_IMMORTAL_ON_START  = true,  -- apply SetImmortal=true to all human-player units at mission start
+    -- Apply SetImmortal=true to human-player groups: once at load, and again
+    -- whenever a player spawns or takes a slot (players join after start).
+    SET_PLAYERS_IMMORTAL   = true,
 }
 
 --------------------
@@ -216,10 +218,20 @@ function HitHandler:onEvent(event)
 end
 
 --------------------
--- Mission start: immortal + log
+-- Immortality
 --------------------
+-- NOTE: whether SetImmortal is honored for client (human) groups must be
+-- confirmed in the mission editor / on the dev server.
+local function makeGroupImmortal(group)
+    if not group then return end
+    local ctrl = group:getController()
+    if ctrl then
+        ctrl:setCommand({ id = "SetImmortal", params = { value = true } })
+    end
+end
+
 local function setAllPlayersImmortal()
-    if not CONFIG.SET_IMMORTAL_ON_START then return end
+    if not CONFIG.SET_PLAYERS_IMMORTAL then return end
     local sides = { coalition.side.BLUE, coalition.side.RED }
     for _, side in ipairs(sides) do
         local groups = coalition.getGroups(side) or {}
@@ -227,17 +239,26 @@ local function setAllPlayersImmortal()
             local units = group:getUnits() or {}
             for _, unit in ipairs(units) do
                 if unit:getPlayerName() then
-                    local ctrl = group:getController()
-                    if ctrl then
-                        ctrl:setCommand({
-                            id = "SetImmortal",
-                            params = { value = true },
-                        })
-                    end
+                    makeGroupImmortal(group)
+                    break
                 end
             end
         end
     end
+end
+
+-- In multiplayer, players occupy slots after the script has loaded, so the
+-- sweep above usually finds nobody. Re-apply on every spawn / slot-in.
+local PlayerHandler = {}
+function PlayerHandler:onEvent(event)
+    if not CONFIG.SET_PLAYERS_IMMORTAL then return end
+    if event.id ~= world.event.S_EVENT_BIRTH
+       and event.id ~= world.event.S_EVENT_PLAYER_ENTER_UNIT then
+        return
+    end
+    local unit = event.initiator
+    if not (unit and unit.getPlayerName and unit:getPlayerName()) then return end
+    if unit.getGroup then makeGroupImmortal(unit:getGroup()) end
 end
 
 --------------------
@@ -257,4 +278,5 @@ local function init()
 end
 
 world.addEventHandler(HitHandler)
+world.addEventHandler(PlayerHandler)
 init()
