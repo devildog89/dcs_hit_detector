@@ -1,34 +1,37 @@
 --[[
 ================================================================================
-  RedFlag Hit Detector v3 (single-file)
+  RedFlag Hit Detector v4 (single-file)
   Rolling Thunder DCS Red Flag — Bryan / Hyperion
-  Author: Joi (per spec 2026-09-06)
 
   Install:
-    1. Copy this file into the mission's scripts/ folder (or mission root).
-    2. In the mission editor, add a "DO SCRIPT FILE" trigger:
+    1. Add redflag_hit_detector.lua to the mission.
+    2. In the mission editor, add a trigger:
          Trigger:   MISSION START
-         Action:    DO SCRIPT FILE
-         File path: redflag_hit_detector_v3.lua
-       The script self-registers; no hook script required.
+         Action:    DO SCRIPT FILE -> redflag_hit_detector.lua
+       The script initializes as soon as it loads; no hook script required.
+    3. (Optional) CSV logging needs io/lfs un-sanitized in the server's
+       Scripts/MissionScripting.lua. On a stock server the script still runs
+       and simply skips logging, with an on-screen notice.
 
   Behavior:
-    1. On S_EVENT_MISSION_START:
-         - Optional: applies SetImmortal=true to every human-player unit
-           (CONFIG.SET_IMMORTAL_ON_START).
-         - Opens the CSV log (CONFIG.LOG_FILE) and writes a header line.
-    2. On S_EVENT_HIT:
-         - Filters: player-only target, category allowlist, exclude collisions
-           / self-fire / friendly fire (toggles in CONFIG).
+    1. On load:
+         - Registers the hit and player handlers.
+         - Optional: SetImmortal on human-player groups (CONFIG.SET_PLAYERS_IMMORTAL),
+           re-applied on every spawn / slot-in (S_EVENT_BIRTH, S_EVENT_PLAYER_ENTER_UNIT).
+         - Opens the CSV log in Saved Games\DCS...\Logs\ (CONFIG.LOG_FILE).
+    2. On S_EVENT_HIT against a human-player unit:
+         - Filters: weapon-category allowlist, collisions, self-fire,
+           friendly fire (toggles in CONFIG).
          - Anti-spam: per-player cooldown (CONFIG.COOLDOWN_SECONDS).
-         - Targeted "knock it off" message to the hit player
-           (outTextForUnit + outSoundForUnit — only the hit player hears/sees).
-         - Broadcast "[HIT]" line via outText (visible to all players, including
-           the white cell / GM slots — standard DCS pattern).
+         - "Knock it off" text + sound to the hit player only
+           (outTextForUnit / outSoundForUnit by unit ID).
+         - "[HIT]" broadcast via outText (visible to all, incl. white cell / GM).
          - Appends a row to the CSV log for GM review.
 
-  Tested with: code review only. DCS server `bravo` is off-limits; v3 must be
-  validated in the mission editor on the dev machine before event use.
+  Status: passes the offline harness (tests/test_hit_detector.lua, mocked DCS
+  API, Lua 5.1). NOT yet validated in DCS. Before event use, confirm on the dev
+  machine: SetImmortal is honored for client groups, PLAYER_SOUND plays, and
+  the CSV lands in Saved Games\DCS...\Logs\. DCS server `bravo` is off-limits.
 ================================================================================
 ]]--
 
@@ -47,6 +50,8 @@ local CONFIG = {
     WC_MSG_FORMAT          = "[HIT] %s in %s by %s — %s (%s)",
 
     -- ===== Sound (played only for the hit player) =====
+    -- Unverified: outSoundForUnit may only play files packed into the .miz.
+    -- If silent in testing, add the .wav/.ogg to the mission and use its name.
     PLAYER_SOUND           = "Effects/Aircrafts/Cockpits/MasterCaution.wav",
 
     -- ===== Hit filter =====
