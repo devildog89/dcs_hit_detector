@@ -202,8 +202,9 @@ function HitHandler:onEvent(event)
     local wpnName  = (weapon and weapon:getName()) or "simulated"
 
     -- 1) Targeted message + per-player sound (hit player only)
-    trigger.action.outTextForUnit(target, CONFIG.PLAYER_MSG, CONFIG.PLAYER_MSG_DURATION, false)
-    trigger.action.outSoundForUnit(target, CONFIG.PLAYER_SOUND)
+    local unitId = target:getID()
+    trigger.action.outTextForUnit(unitId, CONFIG.PLAYER_MSG, CONFIG.PLAYER_MSG_DURATION, false)
+    trigger.action.outSoundForUnit(unitId, CONFIG.PLAYER_SOUND)
 
     -- 2) White-cell / GM broadcast (visible to all players)
     local wcMsg = string.format(CONFIG.WC_MSG_FORMAT,
