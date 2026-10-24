@@ -64,8 +64,10 @@ local CONFIG = {
     EXCLUDE_FRIENDLY_FIRE  = false, -- skip hits from coaltion-mates
 
     -- ===== Logging =====
-    -- CSV log file. Relative paths resolve to the mission folder in DCS.
-    -- Set to nil to disable logging.
+    -- CSV log file. A relative name is written to Saved Games\DCS...\Logs\
+    -- (via lfs.writedir()); an absolute path is used as-is. nil = no logging.
+    -- Requires io/lfs to be un-sanitized in the server's MissionScripting.lua;
+    -- on a stock server logging is skipped with a warning (hits still work).
     LOG_FILE               = "redflag_hits.csv",
 
     -- ===== Immortal =====
@@ -156,28 +158,71 @@ end
 --------------------
 -- Logging
 --------------------
+-- DCS strips io/os/lfs from the mission environment unless the server's
+-- MissionScripting.lua is edited ("desanitized"). Never assume they exist.
 local logHandle = nil
+local logPath   = nil
+
+local CSV_HEADER = "timestamp,player_name,unit_type,initiator,weapon_category,weapon_name"
+
+local function resolveLogPath(p)
+    if p:match("^%a:[/\\]") or p:match("^[/\\]") then return p end  -- already absolute
+    if lfs and lfs.writedir then
+        return lfs.writedir() .. "Logs/" .. p  -- Saved Games\DCS...\Logs\
+    end
+    return p
+end
+
+local function timestamp()
+    if os and os.date then return os.date("%Y-%m-%dT%H:%M:%S") end
+    return string.format("T+%.0fs", getTime())  -- mission time fallback
+end
+
+-- Quote a CSV field if it contains a comma, quote, or newline.
+local function csv(v)
+    v = tostring(v == nil and "" or v)
+    if v:find('[,"\r\n]') then
+        v = '"' .. v:gsub('"', '""') .. '"'
+    end
+    return v
+end
 
 local function openLog()
     if not CONFIG.LOG_FILE then return end
-    logHandle = io.open(CONFIG.LOG_FILE, "a")
-    if logHandle then
-        logHandle:write("timestamp,player_name,unit_type,initiator,weapon_category,weapon_name\n")
-        logHandle:write("# log opened " .. os.date("%Y-%m-%dT%H:%M:%S") .. "\n")
+    if not (io and io.open) then
+        trigger.action.outText("[RedFlagHitDetector] Logging disabled: 'io' is sanitized "
+            .. "in this server's MissionScripting.lua. Hit detection is still active.", 10)
+        return
+    end
+    logPath = resolveLogPath(CONFIG.LOG_FILE)
+
+    -- Only write the header for a new/empty file so restarts don't repeat it.
+    local isNew = true
+    local existing = io.open(logPath, "r")
+    if existing then
+        isNew = (existing:seek("end") == 0)
+        existing:close()
+    end
+
+    local ok, fh = pcall(io.open, logPath, "a")
+    if not ok or not fh then
+        trigger.action.outText("[RedFlagHitDetector] WARNING: could not open log '"
+            .. tostring(logPath) .. "' \u2014 logging disabled.", 10)
+        logPath = nil
+        return
+    end
+    logHandle = fh
+    if isNew then
+        logHandle:write(CSV_HEADER .. "\n")
         logHandle:flush()
-    else
-        trigger.action.outText(
-            "[RedFlagHitDetector] WARNING: could not open log '" .. tostring(CONFIG.LOG_FILE)
-            .. "' \u2014 logging disabled.",
-            5)
     end
 end
 
 local function writeLog(info)
     if not logHandle then return end
-    local ts = os.date("%Y-%m-%dT%H:%M:%S")
-    logHandle:write(string.format("%s,%s,%s,%s,%s,%s\n",
-        ts, info.player, info.unitType, info.shooter, info.category, info.weapon))
+    local row = { timestamp(), info.player, info.unitType, info.shooter, info.category, info.weapon }
+    for i = 1, #row do row[i] = csv(row[i]) end
+    logHandle:write(table.concat(row, ",") .. "\n")
     logHandle:flush()
 end
 
@@ -282,7 +327,7 @@ local function init()
     setAllPlayersImmortal()
     local msg = "[RedFlagHitDetector] Active"
     if logHandle then
-        msg = msg .. " \u2014 logging to " .. CONFIG.LOG_FILE
+        msg = msg .. " \u2014 logging to " .. logPath
     end
     trigger.action.outText(msg, 5)
 end
