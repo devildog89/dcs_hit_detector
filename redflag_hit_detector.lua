@@ -240,21 +240,21 @@ local function setAllPlayersImmortal()
     end
 end
 
-local MissionHandler = {}
-function MissionHandler:onEvent(event)
-    if event.id == world.event.S_EVENT_MISSION_START then
-        openLog()
-        setAllPlayersImmortal()
-        local msg = "[RedFlagHitDetector] Active"
-        if CONFIG.LOG_FILE then
-            msg = msg .. " \u2014 logging to " .. CONFIG.LOG_FILE
-        end
-        trigger.action.outText(msg, 5)
+--------------------
+-- Init + self-register
+--------------------
+-- Runs as soon as the script is loaded. A MISSION START "DO SCRIPT FILE"
+-- trigger executes after S_EVENT_MISSION_START has already been dispatched,
+-- so waiting for that event (as v3 did) means init never runs.
+local function init()
+    openLog()
+    setAllPlayersImmortal()
+    local msg = "[RedFlagHitDetector] Active"
+    if logHandle then
+        msg = msg .. " \u2014 logging to " .. CONFIG.LOG_FILE
     end
+    trigger.action.outText(msg, 5)
 end
 
---------------------
--- Self-register
---------------------
 world.addEventHandler(HitHandler)
-world.addEventHandler(MissionHandler)
+init()
