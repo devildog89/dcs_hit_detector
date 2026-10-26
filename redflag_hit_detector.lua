@@ -202,11 +202,14 @@ local function openLog()
     logPath = resolveLogPath(CONFIG.LOG_FILE)
 
     -- Only write the header for a new/empty file so restarts don't repeat it.
+    -- DCS file handles lack some methods (no seek in the mission env), so
+    -- probe with read and treat any failure as "already has a header".
     local isNew = true
     local existing = io.open(logPath, "r")
     if existing then
-        isNew = (existing:seek("end") == 0)
-        existing:close()
+        local ok, firstByte = pcall(function() return existing:read(1) end)
+        isNew = ok and firstByte == nil
+        pcall(function() existing:close() end)
     end
 
     local ok, fh = pcall(io.open, logPath, "a")
@@ -346,7 +349,15 @@ end
 -- trigger executes after S_EVENT_MISSION_START has already been dispatched,
 -- so waiting for that event (as v3 did) means init never runs.
 local function init()
-    openLog()
+    -- Logging is optional; a failure there must not skip immortality.
+    local ok, err = pcall(openLog)
+    if not ok then
+        logHandle = nil
+        if env and env.error then
+            env.error("[RedFlagHitDetector] log setup error: " .. tostring(err))
+        end
+        trigger.action.outText("[RedFlagHitDetector] WARNING: log setup failed — logging disabled.", 10)
+    end
     setAllPlayersImmortal()
     local msg = "[RedFlagHitDetector] Active"
     if logHandle then

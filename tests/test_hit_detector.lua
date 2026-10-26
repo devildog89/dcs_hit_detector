@@ -83,6 +83,18 @@ local function newEnv(opts)
     }
     if not opts.sanitized then
         E.lfs = { writedir = function() return env.writedir end }
+        -- DCS file handles expose read/write/flush/close but not seek, so
+        -- hand the script a proxy with only those methods.
+        E.io = { open = function(p, mode)
+            local f, err = io.open(p, mode)
+            if not f then return nil, err end
+            return {
+                read  = function(_, ...) return f:read(...) end,
+                write = function(_, ...) return f:write(...) end,
+                flush = function() return f:flush() end,
+                close = function() return f:close() end,
+            }
+        end }
     end
     env.E = E
     return env
@@ -240,7 +252,9 @@ end
 do -- Header written once across restarts
     local wd = newWritedir()
     scenario({ writedir = wd })
-    scenario({ writedir = wd })
+    local env2, ok2 = scenario({ writedir = wd })
+    check("second load with an existing CSV runs init without errors",
+          ok2 and hasText(env2.texts, "logging to"), errs(env2))
     local log = readFile(wd .. "Logs/redflag_hits.csv") or ""
     local _, n = log:gsub("timestamp,player_name", "")
     check("CSV header written once across two mission loads", n == 1, "header count = " .. n)
