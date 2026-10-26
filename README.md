@@ -27,8 +27,20 @@ DCS uses Lua 5.1, so run it with Lua 5.1 or LuaJIT:
 lua5.1 tests/test_hit_detector.lua            # or: luajit tests/test_hit_detector.lua
 ```
 
-### Still to verify in DCS before event use
+### Verified in DCS (single-player, mission editor, 2026-10-26)
 
-- `SetImmortal` is honored for client (human) groups.
+- Missile hits (Tor `SA9M330`, AI `AIM_120C`) and gun hits (23 mm / 57 mm AAA,
+  M61) are detected, labeled `Missile` / `Shell`, and logged with the shooter's
+  unit name and the weapon type.
+- The 15 s cooldown holds under sustained gun fire.
+- `SetImmortal` protects a Player-skill aircraft: health unchanged after two Tor
+  missile hits. (Not measured on the AAA run.)
+- The CSV lands in `Saved Games\DCS\Logs\`, and a second mission load appends
+  to it without repeating the header.
+- The script runs from a DO SCRIPT FILE trigger with the file packed into the .miz.
+
+### Still to verify before event use
+
+- `SetImmortal` is honored for **Client** slots on a hosted multiplayer server.
 - `PLAYER_SOUND` plays via `outSoundForUnit` (may need the file packed into the .miz).
-- The CSV lands in `Saved Games\DCS...\Logs\` on a server with io/lfs un-sanitized.
+  Not tested yet: the test machine was used over Remote Desktop, with no DCS audio.
