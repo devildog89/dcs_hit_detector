@@ -27,6 +27,16 @@ DCS uses Lua 5.1, so run it with Lua 5.1 or LuaJIT:
 lua5.1 tests/test_hit_detector.lua            # or: luajit tests/test_hit_detector.lua
 ```
 
+No local Lua? Run it in a throwaway container from the repo root (Docker, Lua 5.1.5):
+
+```sh
+docker run --rm -v "${PWD}:/src:ro" -w /src alpine:3.20 sh -c "apk add --no-cache lua5.1 >/dev/null && lua5.1 tests/test_hit_detector.lua"
+```
+
+To check the harness still catches a fixed bug, pass an older script as the argument
+(e.g. `git show <rev>:redflag_hit_detector.lua > /tmp/old.lua`, mount it, and run
+`lua5.1 tests/test_hit_detector.lua /path/to/old.lua`).
+
 ### Verified in DCS (single-player, mission editor, 2026-10-26)
 
 - Missile hits (Tor `SA9M330`, AI `AIM_120C`) and gun hits (23 mm / 57 mm AAA,
